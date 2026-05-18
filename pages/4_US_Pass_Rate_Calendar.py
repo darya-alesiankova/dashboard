@@ -19,9 +19,9 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-from google.cloud import bigquery
 from datetime import date, timedelta
 import calendar
+import os
 
 st.set_page_config(page_title="US Pass Rate Calendar", layout="wide")
 st.title("US Transaction Pass Rate Calendar")
@@ -29,8 +29,6 @@ st.caption(
     "Проходимость транзакций по дням для US-пользователей. "
     "Вертикальные линии / ячейки с рамкой — даты Social Security выплат."
 )
-
-PROJECT_ID = "asocial-prod"
 
 
 # ─── SS payment dates ────────────────────────────────────────────────────────
@@ -98,33 +96,18 @@ def get_ss_dates(start: date, end: date) -> dict[date, list[str]]:
     return result
 
 
-# ─── BQ query ────────────────────────────────────────────────────────────────
+# ─── Load data from CSV ──────────────────────────────────────────────────────
 
-@st.cache_data(ttl=3600, show_spinner=False)
+DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "us_pass_rate.csv")
+
+@st.cache_data(show_spinner=False)
 def load_data(trans_types: tuple[str, ...]) -> pd.DataFrame:
-    client = bigquery.Client(project=PROJECT_ID)
-
-    types_str = ", ".join(f"'{t}'" for t in trans_types)
-    sql = f"""
-    SELECT
-        DATE(date_created)          AS txn_date,
-        bank,
-        COUNT(*)                    AS total,
-        COUNTIF(status = 'success') AS success
-    FROM `asocial-prod.analytics.transactions`
-    WHERE
-        DATE(date_created) >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
-        AND group_country = 'US'
-        AND type IN ({types_str})
-        AND bank IS NOT NULL
-        AND bank NOT IN ('no info', '', 'no_info')
-        AND target_transaction = TRUE
-    GROUP BY 1, 2
-    ORDER BY 1, 2
-    """
-    df = client.query(sql).to_dataframe()
-    client.close()
+    df = pd.read_csv(DATA_PATH)
     df["txn_date"] = pd.to_datetime(df["txn_date"]).dt.date
+    df = df[df["type"].isin(trans_types)]
+    df = df.groupby(["txn_date", "bank"], as_index=False).agg(
+        total=("total", "sum"), success=("success", "sum")
+    )
     df["pass_rate"] = (df["success"] / df["total"] * 100).round(1)
     return df
 
