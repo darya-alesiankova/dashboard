@@ -98,7 +98,7 @@ def get_ss_dates(start: date, end: date) -> dict[date, list[str]]:
 
 # ─── Load data from CSV ──────────────────────────────────────────────────────
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "us_pass_rate.csv")
+DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "us_pass_rate.csv")
 
 @st.cache_data(show_spinner=False)
 def load_data(trans_types: tuple[str, ...]) -> pd.DataFrame:
