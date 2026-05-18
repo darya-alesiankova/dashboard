@@ -143,6 +143,28 @@ if df_raw.empty:
     st.warning("Нет данных по выбранным фильтрам.")
     st.stop()
 
+# Информация о периоде данных
+data_min = df_raw["txn_date"].min()
+data_max = df_raw["txn_date"].max()
+st.sidebar.caption(f"Данные в CSV: {data_min} → {data_max}")
+
+# Фильтр по периоду
+period_options = {
+    "Последний месяц":    30,
+    "Последние 2 месяца": 60,
+    "Последние 3 месяца": 90,
+    "Всё":                None,
+}
+selected_period = st.sidebar.radio(
+    "Период",
+    options=list(period_options.keys()),
+    index=0,
+)
+period_days = period_options[selected_period]
+if period_days is not None:
+    cutoff = data_max - timedelta(days=period_days - 1)
+    df_raw = df_raw[df_raw["txn_date"] >= cutoff].copy()
+
 # Считаем суммарный объём по банкам → сортируем
 bank_volume = df_raw.groupby("bank")["total"].sum().sort_values(ascending=False)
 banks_filtered = bank_volume[bank_volume >= min_volume].index.tolist()
@@ -168,6 +190,10 @@ df = df_raw[df_raw["bank"].isin(selected_banks)].copy()
 # ─── Сводная таблица ─────────────────────────────────────────────────────────
 
 st.subheader("Сводка по банкам")
+st.caption(
+    f"Период: **{df_raw['txn_date'].min()} → {df_raw['txn_date'].max()}**. "
+    "**% success rate** = кол-во успешных транзакций / общее кол-во × 100."
+)
 
 summary = (
     df.groupby("bank")
@@ -208,7 +234,7 @@ styled_summary = (
     summary.rename(columns={
         "bank": "Банк",
         "total_trans": "Всего транзакций",
-        "avg_pass_rate": "Avg pass rate %",
+        "avg_pass_rate": "% success rate",
         "ss_pass_rate": "Pass rate в SS-дни %",
         "non_pass_rate": "Pass rate в обычные дни %",
         "delta_ss": "Delta (SS − обычные)",
@@ -216,14 +242,14 @@ styled_summary = (
     })
     .style
     .format({
-        "Avg pass rate %": "{:.1f}%",
+        "% success rate": "{:.1f}%",
         "Pass rate в SS-дни %": "{:.1f}%",
         "Pass rate в обычные дни %": "{:.1f}%",
         "Delta (SS − обычные)": "{:+.1f}%",
         "Всего транзакций": "{:,}",
         "Транзакций в SS-дни": "{:,}",
     }, na_rep="—")
-    .background_gradient(cmap="RdYlGn", subset=["Avg pass rate %", "Pass rate в SS-дни %", "Pass rate в обычные дни %"], axis=None, vmin=50, vmax=100)
+    .background_gradient(cmap="RdYlGn", subset=["% success rate", "Pass rate в SS-дни %", "Pass rate в обычные дни %"], axis=None, vmin=50, vmax=100)
     .background_gradient(cmap="RdYlGn", subset=["Delta (SS − обычные)"], axis=None, vmin=-10, vmax=10)
 )
 st.dataframe(styled_summary, use_container_width=True, height=400)
