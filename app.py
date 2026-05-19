@@ -262,58 +262,6 @@ st.caption(
 
 st.divider()
 
-# ─── Heatmap: банки × даты ───────────────────────────────────────────────────
-
-st.subheader("Heatmap: pass rate по банкам и датам")
-
-# Строим pivot
-pivot = df.pivot_table(
-    index="bank", columns="txn_date", values="pass_rate", aggfunc="mean"
-)
-# Сортируем банки по объёму (как в фильтре)
-bank_order = [b for b in bank_volume.index if b in pivot.index]
-pivot = pivot.reindex(bank_order)
-
-date_cols = list(pivot.columns)
-
-# Переименовываем столбцы: SS-даты помечаем ★
-pivot_display = pivot.copy()
-pivot_display.columns = [
-    f"★ {d}" if d in ss_date_set else str(d)
-    for d in date_cols
-]
-# Индекс тоже в строки (имена банков)
-pivot_display.index = pivot_display.index.astype(str)
-
-fig_heatmap = px.imshow(
-    pivot_display,
-    color_continuous_scale="RdYlGn",
-    zmin=50,
-    zmax=100,
-    aspect="auto",
-    labels=dict(x="Дата  (★ = SS-выплата)", y="Банк", color="Pass rate %"),
-)
-fig_heatmap.update_layout(
-    height=max(400, len(selected_banks) * 22 + 150),
-    xaxis=dict(
-        tickangle=-90,
-        tickfont=dict(size=9),
-        side="bottom",
-        tickmode="linear",
-        dtick=1,
-    ),
-    yaxis=dict(tickfont=dict(size=10)),
-    coloraxis_colorbar=dict(
-        title="Pass rate %",
-        ticksuffix="%",
-    ),
-    margin=dict(l=10, r=10, t=40, b=120),
-)
-st.plotly_chart(fig_heatmap, use_container_width=True)
-st.caption("Серые/тёмные ячейки — нет транзакций для этого банка в этот день. ★ на оси X — день SS-выплаты.")
-
-st.divider()
-
 # ─── Line chart: топ банков по объёму с SS-маркерами ─────────────────────────
 
 st.subheader("Динамика pass rate — топ банков")
