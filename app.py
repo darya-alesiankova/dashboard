@@ -276,20 +276,8 @@ pivot = pivot.reindex(bank_order)
 
 date_cols = list(pivot.columns)
 
-# NaN → -1 (нет данных), чтобы показывать серым
+# NaN оставляем как NaN — они будут прозрачными поверх plot_bgcolor=#dddddd (светло-серый)
 z_values = pivot.values.astype(float)
-z_values = np.where(np.isnan(z_values), -1.0, z_values)
-
-# Colorscale: резкая граница между серым (-1) и данными (0..100)
-# zmin=-1, zmax=100 → диапазон 101
-# -1 → позиция 0/101=0.000, 0 → 1/101=0.0099
-colorscale = [
-    [0.000, "#cccccc"],  # -1   → серый (нет данных)
-    [0.009, "#cccccc"],  # граница: ниже 0 → всё ещё серый
-    [0.010, "#d73027"],  # 0    → тёмно-красный
-    [0.505, "#ffffbf"],  # ~50  → жёлтый
-    [1.000, "#1a9850"],  # 100  → зелёный
-]
 
 # Подписи дат: SS-даты помечаем ★
 date_labels = [
@@ -297,17 +285,24 @@ date_labels = [
     for d in date_cols
 ]
 
+# Показываем явно: все SS-даты + каждую 5-ю обычную дату
+ss_labels = [f"★ {d}" for d in date_cols if d in ss_date_set]
+regular_labels = [date_labels[i] for i in range(0, len(date_labels), 5)]
+visible_ticks = sorted(
+    set(ss_labels) | set(regular_labels),
+    key=lambda lbl: lbl.replace("★ ", ""),
+)
+
 fig_heatmap = go.Figure(go.Heatmap(
     z=z_values,
     x=date_labels,
     y=pivot.index.tolist(),
-    colorscale=colorscale,
-    zmin=-1,
+    colorscale="RdYlGn",
+    zmin=50,
     zmax=100,
     colorbar=dict(
         title="Pass rate %",
-        tickvals=[-1, 50, 75, 100],
-        ticktext=["нет данных", "50%", "75%", "100%"],
+        ticksuffix="%",
     ),
     hovertemplate="<b>%{y}</b><br>%{x}<br>Pass rate: %{z:.1f}%<extra></extra>",
     xgap=1,
@@ -316,16 +311,20 @@ fig_heatmap = go.Figure(go.Heatmap(
 
 fig_heatmap.update_layout(
     height=max(400, len(selected_banks) * 22 + 150),
+    plot_bgcolor="#dddddd",   # NaN-ячейки → светло-серый (не зависит от темы)
+    paper_bgcolor="rgba(0,0,0,0)",
     xaxis=dict(
         title="Дата  (★ = день SS-выплаты)",
         tickangle=-90,
         tickfont=dict(size=10),
+        tickvals=visible_ticks,
+        ticktext=visible_ticks,
         side="bottom",
     ),
     yaxis=dict(title="Банк", autorange="reversed", tickfont=dict(size=10)),
     margin=dict(l=10, r=10, t=40, b=120),
 )
-st.plotly_chart(fig_heatmap, use_container_width=True)
+st.plotly_chart(fig_heatmap, use_container_width=True, theme=None)
 st.caption("Серые ячейки — нет транзакций для этого банка в этот день. ★ на оси X — день SS-выплаты.")
 
 st.divider()
