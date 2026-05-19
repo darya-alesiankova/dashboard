@@ -267,7 +267,6 @@ st.divider()
 st.subheader("Heatmap: pass rate по банкам и датам")
 
 # Строим pivot
-all_dates = sorted(df["txn_date"].unique())
 pivot = df.pivot_table(
     index="bank", columns="txn_date", values="pass_rate", aggfunc="mean"
 )
@@ -275,73 +274,70 @@ pivot = df.pivot_table(
 bank_order = [b for b in bank_volume.index if b in pivot.index]
 pivot = pivot.reindex(bank_order)
 
-# Подписи дат: SS-даты выделяем
-date_labels_marked = [
-    f"◆ {d}" if d in ss_date_set else str(d)
-    for d in pivot.columns
-]
-# Цвет подписей: SS-даты = синий, обычные = серый
-tickcolors = [
-    "#1a6fdd" if d in ss_date_set else "#888888"
-    for d in pivot.columns
-]
+date_cols = list(pivot.columns)
+date_labels = [str(d) for d in date_cols]
 
-# Заменяем NaN на -1 чтобы они отображались явно светло-серым, а не чёрным
-z_values = pivot.values.copy().astype(float)
+# Заменяем NaN → -1, чтобы пустые ячейки = светло-серый
+z_main = np.where(np.isnan(pivot.values.astype(float)), -1.0, pivot.values.astype(float))
 
-# Кастомный colorscale: -1 → светло-серый, 0-50 → красный, 100 → зелёный
-custom_colorscale = [
-    [0.0,   "#d3d3d3"],   # -1  → светло-серый (нет данных)
-    [0.005, "#d73027"],   # ~0  → красный (граница "нет данных" / плохой)
-    [0.5,   "#ffffbf"],   # ~50 → жёлтый
-    [1.0,   "#1a9850"],   # 100 → зелёный
+# Colorscale: -1 → серый, 50 → красный, 75 → жёлтый, 100 → зелёный
+# zmin=-1, zmax=100 → диапазон 101, позиция -1 = 0/101 = 0.0
+colorscale_main = [
+    [0.000, "#cccccc"],   # -1  → серый (нет данных)
+    [0.010, "#d73027"],   # ≈0  → красный
+    [0.505, "#ffffbf"],   # ≈50 → жёлтый
+    [1.000, "#1a9850"],   # 100 → зелёный
 ]
 
-fig_heatmap = go.Figure(
-    go.Heatmap(
-        z=z_values,
-        x=date_labels_marked,
-        y=pivot.index.tolist(),
-        colorscale=custom_colorscale,
-        zmin=-1,
-        zmax=100,
-        colorbar=dict(
-            title="Pass rate %",
-            ticksuffix="%",
-            tickvals=[0, 50, 75, 100],
-            ticktext=["нет данных", "50%", "75%", "100%"],
-        ),
-        hovertemplate="<b>%{y}</b><br>%{x}<br>Pass rate: %{z:.1f}%<extra></extra>",
-        xgap=1,
-        ygap=1,
-    )
-)
+# SS-индикаторная строка: синяя ячейка = SS-выплата, серая = обычный день
+ss_row = np.array([[1.0 if d in ss_date_set else -1.0 for d in date_cols]])
+
+fig_heatmap = go.Figure()
+
+# 1. Верхняя строка — индикатор SS-дат (синий)
+fig_heatmap.add_trace(go.Heatmap(
+    z=ss_row,
+    x=date_labels,
+    y=["▶ SS выплата"],
+    colorscale=[[0, "#cccccc"], [1, "#1a6fdd"]],
+    zmin=-1, zmax=1,
+    showscale=False,
+    xgap=1, ygap=2,
+    hovertemplate="<b>SS-выплата</b><br>%{x}<extra></extra>",
+))
+
+# 2. Основной heatmap — банки
+fig_heatmap.add_trace(go.Heatmap(
+    z=z_main,
+    x=date_labels,
+    y=pivot.index.tolist(),
+    colorscale=colorscale_main,
+    zmin=-1,
+    zmax=100,
+    colorbar=dict(
+        title="Pass rate %",
+        ticksuffix="%",
+        tickvals=[-1, 50, 75, 100],
+        ticktext=["нет данных", "50%", "75%", "100%"],
+    ),
+    hovertemplate="<b>%{y}</b><br>%{x}<br>Pass rate: %{z:.1f}%<extra></extra>",
+    xgap=1,
+    ygap=1,
+))
 
 fig_heatmap.update_layout(
-    height=max(400, len(selected_banks) * 22 + 150),
-    plot_bgcolor="#f5f5f5",
-    paper_bgcolor="rgba(0,0,0,0)",
+    height=max(450, (len(selected_banks) + 1) * 22 + 150),
     xaxis=dict(
-        title="Дата (◆ = SS-выплата)",
+        title="Дата",
         tickangle=-90,
         tickfont=dict(size=9),
         side="bottom",
     ),
-    yaxis=dict(title="Банк", autorange="reversed", tickfont=dict(size=10)),
+    yaxis=dict(autorange="reversed", tickfont=dict(size=10)),
     margin=dict(l=10, r=10, t=40, b=100),
 )
-
-# Подсвечиваем SS-даты синим цветом подписей через ticktext/tickvals
-ss_tick_indices = [i for i, d in enumerate(pivot.columns) if d in ss_date_set]
-fig_heatmap.update_xaxes(
-    tickvals=date_labels_marked,
-    ticktext=[
-        f"<b><span style='color:#1a6fdd'>{lbl}</span></b>" if d in ss_date_set else lbl
-        for lbl, d in zip(date_labels_marked, pivot.columns)
-    ],
-)
-
 st.plotly_chart(fig_heatmap, use_container_width=True)
+st.caption("Серые ячейки — нет транзакций для этого банка в этот день. Синяя строка сверху — даты SS-выплат.")
 
 st.divider()
 
