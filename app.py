@@ -295,7 +295,13 @@ fig_heatmap = px.imshow(
 )
 fig_heatmap.update_layout(
     height=max(400, len(selected_banks) * 22 + 150),
-    xaxis=dict(tickangle=-90, tickfont=dict(size=9), side="bottom"),
+    xaxis=dict(
+        tickangle=-90,
+        tickfont=dict(size=9),
+        side="bottom",
+        tickmode="linear",
+        dtick=1,
+    ),
     yaxis=dict(tickfont=dict(size=10)),
     coloraxis_colorbar=dict(
         title="Pass rate %",
